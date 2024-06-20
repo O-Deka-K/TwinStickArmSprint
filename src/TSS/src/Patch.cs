@@ -82,7 +82,8 @@ namespace H3VRMod
 				//If walking via twinstick is activated, also activate armswinger via manipulating inputs.
 				//Fucky, i know! But it works and it's easy. Fight me.
 				if (__instance.Hands[0].Input.Secondary2AxisInputAxes.magnitude > 0.9
-				 && !__instance.Hands[0].Input.Secondary2AxisSouthPressed) { //Prevent armswinger causing fuckery when trying to pedal back.
+				&& (GM.Options.MovementOptions.Touchpad_MovementMode == FVRMovementManager.TwoAxisMovementMode.LeveledHead
+				|| !__instance.Hands[0].Input.Secondary2AxisSouthPressed)) { //Prevent armswinger causing fuckery when trying to pedal back.
 					__instance.Hands[0].Input.BYButtonPressed = true;
 					__instance.Hands[1].Input.BYButtonPressed = true;
 				}
@@ -111,7 +112,45 @@ namespace H3VRMod
 				GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = __state.BaseSpeedLeft;
 			}
 		}
-		
+
+		public class USLState {
+			public Vector3 RightHandPointing;
+			public Vector3 LeftHandPointing;
+		}
+
+		[HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
+		[HarmonyPrefix]
+		public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, out USLState __state)
+		{
+			__state = new USLState();
+			if (IsTwinStickSwinger
+			 && __instance.Mode == FVRMovementManager.MovementMode.Armswinger
+			 && GM.Options.MovementOptions.Touchpad_MovementMode == FVRMovementManager.TwoAxisMovementMode.LeveledHead) {
+				//Save state of hand vectors
+				__state.RightHandPointing = __instance.Hands[0].PointingTransform.forward;
+				__state.LeftHandPointing = __instance.Hands[1].PointingTransform.forward;
+				//Only do this if we are moving
+				if (__instance.worldTPAxis.magnitude > 0f) {
+					//Set hand vectors to point in the direction of twinstick travel
+					__instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
+					__instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
+				}
+			}
+		}
+
+		[HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
+		[HarmonyPostfix]
+		public static void Patch_SmoothLocomotionUpdateEnd(FVRMovementManager __instance, USLState __state)
+		{
+			if (IsTwinStickSwinger
+			 && __instance.Mode == FVRMovementManager.MovementMode.Armswinger
+			 && GM.Options.MovementOptions.Touchpad_MovementMode == FVRMovementManager.TwoAxisMovementMode.LeveledHead) {
+				// Restore state of hand vectors
+				__instance.Hands[0].PointingTransform.forward = __state.RightHandPointing;
+				__instance.Hands[1].PointingTransform.forward = __state.LeftHandPointing;
+			}
+		}
+
 		//Bafflingly, for some random ass reason, jumping in TwinStickSwinger gives you inhumane strength.
 		//Like, you jump twice the height as regular armswinger.
 		//i have no fucking clue why.
