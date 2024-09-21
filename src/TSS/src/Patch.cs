@@ -1,209 +1,212 @@
 ﻿using FistVR;
 using HarmonyLib;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace H3VRMod
 {
-    public class Patch
-    {
-        public static int MovementHand = 0;
+	public class Patch {
 
-        // This function finds the movement hand
-        [HarmonyPatch(typeof(FVRMovementManager), "Awake")]
-        [HarmonyPrefix]
-        public static void Patch_FindMovementHand(FVRMovementManager __instance)
-        {
-            int rightHand = __instance.Hands[0].IsThisTheRightHand ? 0 : 1;
-            MovementHand = (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove) ? rightHand : 1 - rightHand;
-        }
+		//Hacky.
+		public static bool IsTwinStickSwinger = false;
+		
+		[HarmonyPatch(typeof(FVRMovementManager), "UpdateMovementWithHand")]
+		[HarmonyPrefix]
+		public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, ref FVRViveHand hand)
+		{
+			if (__instance.Mode == FVRMovementManager.MovementMode.Dash) {
+				//Save some states, set some necessary states
+				//Prevent turning by TwinStick when pressing Armswinger buttons
+				var tssts = GM.Options.MovementOptions.TwinStickSnapturnState;
+				GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
+				//Jumping for TwinStick is broken. I have NO fucking idea why.
+				//It just sorta pushes you down. To prevent this, just disable twinstick jump. You can still armswing jump.
+				var jumpstate = GM.Options.MovementOptions.TwinStickJumpState;
+				GM.Options.MovementOptions.TwinStickJumpState = MovementOptions.TwinStickJumpMode.Disabled;
+				
+				__instance.HandUpdateTwinstick(hand);
+				
+				//Re-set those states
+				GM.Options.MovementOptions.TwinStickJumpState = jumpstate;
+				GM.Options.MovementOptions.TwinStickSnapturnState = tssts;
+				
+				__instance.AXButtonCheck(hand);
+				return false;
+			}
+			return true;
+		}
 
-        // This is used by controllers that do not have an analog stick, so they use the touchpad instead
-        [HarmonyPatch(typeof(FVRMovementManager), "ShouldFlushTouchpad")]
-        [HarmonyPostfix]
-        public static void Patch_ShouldFlushTouchpad(FVRMovementManager __instance, FVRViveHand hand, ref bool __result)
-        {
-            if (!hand.IsInStreamlinedMode && hand.CMode != ControlMode.Index && hand.CMode != ControlMode.WMR && __instance.Mode == FVRMovementManager.MovementMode.Armswinger)
-            {
-                bool isTurningHand = hand.IsThisTheRightHand;
+		public class FUState {
+			public bool IsTwinStickSwinger;
+			public int  BaseSpeedRight;
+			public int  BaseSpeedLeft;
+		}
+		
+		[HarmonyPatch(typeof(FVRMovementManager), "FU")]
+		[HarmonyPrefix]
+		public static bool Patch_MovementMathUpdate(FVRMovementManager __instance, out FUState __state) {
+			__state = new FUState();
+			if (__instance.Mode == FVRMovementManager.MovementMode.Dash) {
+				IsTwinStickSwinger = true;
+				//Okay so this is a little fucky!
+				
+				//Set gravity to zero. Gravity is calculated at UpdateSmoothLocomotion, and we're running it twice, so
+				//if we don't set grav to 0 we will simulate grav twice.
+				var gravmode = GM.Options.SimulationOptions.PlayerGravityMode;
+				GM.Options.SimulationOptions.PlayerGravityMode = SimulationOptions.GravityMode.None;
+				
+				
+				//Set to Twinstick and run USL. USL here wont sim grav but will sim Twinstick.
+				__instance.Mode = FVRMovementManager.MovementMode.TwinStick;
 
-                if (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove)
-                    isTurningHand = !isTurningHand;
+				__instance.UpdateSmoothLocomotion();
+				
+				//Reset gravity.
+				GM.Options.SimulationOptions.PlayerGravityMode = gravmode;
+				
+				
+				
+				//Set to Armswinger.
+				__instance.Mode = FVRMovementManager.MovementMode.Armswinger;
+				
+				//Set base speed of Armswinger to zero, or else the base speed of armswinger when pressing down will occur
+				//bc armswinger is auto-activated whenever you press on the joystick, every time u press on the joystick itd just kinda
+				//slowly move u forward
+				//so dont do that
+				__state.BaseSpeedRight = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right;
+				__state.BaseSpeedLeft = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left;
+				GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right = 0;
+				GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = 0;
 
-                if (__instance.m_isLeftHandActive && !isTurningHand)
-                    __result = true;
+				
+				//If walking via twinstick is activated, also activate armswinger via manipulating inputs.
+				//Fucky, i know! But it works and it's easy. Fight me.
+				if (__instance.Hands[0].Input.Secondary2AxisInputAxes.magnitude > 0.9
+				&& (GM.Options.MovementOptions.Touchpad_MovementMode == FVRMovementManager.TwoAxisMovementMode.LeveledHead
+				|| !__instance.Hands[0].Input.Secondary2AxisSouthPressed)) { //Prevent armswinger causing fuckery when trying to pedal back.
+					__instance.Hands[0].Input.BYButtonPressed = true;
+					__instance.Hands[1].Input.BYButtonPressed = true;
+				}
+				//Inform state that we're going to reset it back to Dash
+				__state.IsTwinStickSwinger = true;
+			}
+			else {
+				__state.IsTwinStickSwinger = false;
+				IsTwinStickSwinger = false;
+				//I think i'm repeating myself. Fix this later, i guess
+			} //We're not Dash (TSS). Just ignore everything and move on.
 
-                if (__instance.m_isRightHandActive && isTurningHand)
-                    __result = true;
-            }
-        }
+			//If set to armswinger, it'll run USL again in the regular FU function, and simulate gravity properly.
+			return true;
+		}
+		
+		[HarmonyPatch(typeof(FVRMovementManager), "FU")]
+		[HarmonyPostfix]
+		public static void Patch_MovementMathUpdateEnd(FVRMovementManager __instance, FUState __state)
+		{
+			//Afterwards, reset the movement style to Dash so we can repeat the entire process.
+			if (__state.IsTwinStickSwinger) {
+				__instance.Mode = FVRMovementManager.MovementMode.Dash;
+				//Reset base speed.
+				GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right = __state.BaseSpeedRight;
+				GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = __state.BaseSpeedLeft;
+			}
+		}
 
-        // This function gets the movement axis velocity
-        [HarmonyPatch(typeof(FVRMovementManager), "UpdateMovementWithHand")]
-        [HarmonyPrefix]
-        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, FVRViveHand hand)
-        {
-            if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
-            {
-                bool westDown = __instance.Hands[MovementHand].Input.Secondary2AxisWestDown;
-                bool eastDown = __instance.Hands[MovementHand].Input.Secondary2AxisEastDown;
+		public class USLState {
+			public Vector3 RightHandPointing;
+			public Vector3 LeftHandPointing;
+		}
 
-                // Handle snap turning
-                // Don't allow the movement hand to do snap turning
-                __instance.Hands[MovementHand].Input.Secondary2AxisWestDown = false;
-                __instance.Hands[MovementHand].Input.Secondary2AxisEastDown = false;
-                __instance.HandUpdateArmSwinger(hand);
-                __instance.Hands[MovementHand].Input.Secondary2AxisWestDown = westDown;
-                __instance.Hands[MovementHand].Input.Secondary2AxisEastDown = eastDown;
+		[HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
+		[HarmonyPrefix]
+		public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, out USLState __state)
+		{
+			__state = new USLState();
+			if (IsTwinStickSwinger
+			 && __instance.Mode == FVRMovementManager.MovementMode.Armswinger
+			 && GM.Options.MovementOptions.Touchpad_MovementMode == FVRMovementManager.TwoAxisMovementMode.LeveledHead) {
+				//Save state of hand vectors
+				__state.RightHandPointing = __instance.Hands[0].PointingTransform.forward;
+				__state.LeftHandPointing = __instance.Hands[1].PointingTransform.forward;
+				//Only do this if we are moving
+				if (__instance.worldTPAxis.magnitude > 0f) {
+					//Set hand vectors to point in the direction of twinstick travel
+					__instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
+					__instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
+				}
+			}
+		}
 
-                // Ignore TwinStick turn mode
-                var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
-                GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
-                __instance.HandUpdateTwinstick(hand);
-                GM.Options.MovementOptions.TwinStickSnapturnState = mode;
+		[HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
+		[HarmonyPostfix]
+		public static void Patch_SmoothLocomotionUpdateEnd(FVRMovementManager __instance, USLState __state)
+		{
+			if (IsTwinStickSwinger
+			 && __instance.Mode == FVRMovementManager.MovementMode.Armswinger
+			 && GM.Options.MovementOptions.Touchpad_MovementMode == FVRMovementManager.TwoAxisMovementMode.LeveledHead) {
+				// Restore state of hand vectors
+				__instance.Hands[0].PointingTransform.forward = __state.RightHandPointing;
+				__instance.Hands[1].PointingTransform.forward = __state.LeftHandPointing;
+			}
+		}
 
-                __instance.AXButtonCheck(hand);
-                return false;
-            }
+		//Bafflingly, for some random ass reason, jumping in TwinStickSwinger gives you inhumane strength.
+		//Like, you jump twice the height as regular armswinger.
+		//i have no fucking clue why.
+		[HarmonyPatch(typeof(FVRMovementManager), "Jump")]
+		[HarmonyPrefix]
+		public static bool Patch_JumpingTooFuckingMuch(FVRMovementManager __instance)
+		{
+			if ((__instance.Mode == FVRMovementManager.MovementMode.Armswinger
+			  || __instance.Mode == FVRMovementManager.MovementMode.SingleTwoAxis
+			  || __instance.Mode == FVRMovementManager.MovementMode.TwinStick)
+			 && !__instance.m_isGrounded)
+				return false;
 
-            return true;
-        }
+			__instance.DelayGround(0.1f);
+			float num = 0f;
+			switch (GM.Options.SimulationOptions.PlayerGravityMode)
+			{
+				case SimulationOptions.GravityMode.Realistic:
+					num = 7.1f;
+					break;
+				case SimulationOptions.GravityMode.Playful:
+					num = 5f;
+					break;
+				case SimulationOptions.GravityMode.OnTheMoon:
+					num = 3f;
+					break;
+				case SimulationOptions.GravityMode.None:
+					num = 0.001f;
+					break;
+			}
+			num *= 0.65f;
+			if (IsTwinStickSwinger) {
+				num *= 0.7f;
+			}
+			if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger
+			 || __instance.Mode == FVRMovementManager.MovementMode.SingleTwoAxis
+			 || __instance.Mode == FVRMovementManager.MovementMode.TwinStick)
+			{
+				__instance.DelayGround(0.25f);
+				__instance.m_smoothLocoVelocity.y = Mathf.Clamp(__instance.m_smoothLocoVelocity.y, 0f, __instance.m_smoothLocoVelocity.y);
+				__instance.m_smoothLocoVelocity.y = num;
+				__instance.m_isGrounded = false;
+			}
 
-        // Maps movement axis speed to Armswinger base speeds
-        // Reference:
-        //   0     1     2     3     4     5
-        //   0     0.15  0.25  0.5   0.8   1.2   ArmSwingerBaseSpeeMagnitudes
-        //   0.7   1.3   1.8   2.6   4     6.5   TPLocoSpeeds
-        public static readonly Dictionary<float, int[]> SpeedMap = new()
-        {
-            { 3.6f,   new int[] {5, 5} },
-            { 3.0f,   new int[] {5, 4} },
-            { 2.55f,  new int[] {5, 3} },
-            { 2.4f,   new int[] {4, 4} },
-            { 2.175f, new int[] {5, 2} },
-            { 2.025f, new int[] {5, 1} },
-            { 1.95f,  new int[] {4, 3} },
-            { 1.8f,   new int[] {5, 0} },
-            { 1.575f, new int[] {4, 2} },
-            { 1.5f,   new int[] {3, 3} },
-            { 1.425f, new int[] {4, 1} },
-            { 1.2f,   new int[] {4, 0} },
-            { 1.125f, new int[] {3, 2} },
-            { 0.975f, new int[] {3, 1} },
-            { 0.75f,  new int[] {2, 2} },
-            { 0.6f,   new int[] {2, 1} },
-            { 0.45f,  new int[] {1, 1} },
-            { 0.375f, new int[] {2, 0} },
-            { 0.225f, new int[] {1, 0} },
-            { 0f,     new int[] {0, 0} },
-        };
-
-        public class HandState
-        {
-            public Quaternion pointerRotation_0;
-            public Quaternion pointerRotation_1;
-            public int baseSpeedLeft;
-            public int baseSpeedRight;
-        }
-
-        // This function manipulates Armswinger settings and button states based on what the movement stick is doing
-        [HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
-        [HarmonyPrefix]
-        public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, out HandState __state)
-        {
-            __state = new HandState();
-
-            if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
-            {
-                // Don't allow the movement hand to do smooth turning
-                __instance.Hands[MovementHand].Input.Secondary2AxisWestPressed = false;
-                __instance.Hands[MovementHand].Input.Secondary2AxisEastPressed = false;
-
-                // Armswinger buttons
-                ref bool armSwingPressed_0 = ref __instance.Hands[0].Input.BYButtonPressed;
-                ref bool armSwingPressed_1 = ref __instance.Hands[1].Input.BYButtonPressed;
-
-                if (__instance.Hands[0].IsInStreamlinedMode)
-                {
-                    if (__instance.Hands[0].CMode == ControlMode.Index || __instance.Hands[0].CMode == ControlMode.WMR)
-                    {
-                        armSwingPressed_0 = ref __instance.Hands[0].Input.Secondary2AxisNorthPressed;
-                        armSwingPressed_1 = ref __instance.Hands[1].Input.Secondary2AxisNorthPressed;
-                    }
-                    else
-                    {
-                        armSwingPressed_0 = ref __instance.Hands[0].Input.TouchpadNorthPressed;
-                        armSwingPressed_1 = ref __instance.Hands[1].Input.TouchpadNorthPressed;
-                    }
-                }
-
-                // If the movement stick is active, activate both Armswinger buttons
-                // This causes forward movement based on ArmSwingerBaseSpeed_Left and ArmSwingerBaseSpeed_Right
-                float twinStickSpeed = __instance.worldTPAxis.magnitude;
-                armSwingPressed_0 = (twinStickSpeed > 0f);
-                armSwingPressed_1 = (twinStickSpeed > 0f);
-
-                // Save rotation of hand pointers
-                __state.pointerRotation_0 = __instance.Hands[0].PointingTransform.localRotation;
-                __state.pointerRotation_1 = __instance.Hands[1].PointingTransform.localRotation;
-
-                // Save Armswinger settings
-                __state.baseSpeedLeft = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left;
-                __state.baseSpeedRight = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right;
-
-                // Only do this if we are moving
-                // worldTPAxis will be between 0 and TPLocoSpeeds[TPLocoSpeedIndex]
-                if (twinStickSpeed > 0f)
-                {
-                    // Set hand pointers to direction given by movement stick
-                    __instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
-                    __instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
-
-                    // For regular TwinStick mode, player speed = worldTPAxis.magnitude.
-                    // For Armswinger (with no arm movement), player speed = (ArmSwingerBaseSpeeMagnitudes[Left] + ArmSwingerBaseSpeeMagnitudes[Right]) x 1.5.
-                    // After adding arm movement, speed maxes out at 11, no matter what the base speed is.
-                    foreach (float speed in SpeedMap.Keys)
-                    {
-                        if (twinStickSpeed > speed)
-                        {
-                            GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = SpeedMap[speed][0];
-                            GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right = SpeedMap[speed][1];
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // This function restores settings and states that were manipulated earlier
-        [HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
-        [HarmonyPostfix]
-        public static void Patch_SmoothLocomotionUpdateEnd(FVRMovementManager __instance, HandState __state)
-        {
-            if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
-            {
-                // Restore rotation of hand pointers
-                __instance.Hands[0].PointingTransform.localRotation = __state.pointerRotation_0;
-                __instance.Hands[1].PointingTransform.localRotation = __state.pointerRotation_1;
-
-                // Restore Armswinger settings
-                GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = __state.baseSpeedLeft;
-                GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right = __state.baseSpeedRight;
-            }
-        }
-
-        // This function renames the movement mode in the wrist menu
-        [HarmonyPatch(typeof(FVRPointableButton), "Awake")]
-        [HarmonyPostfix]
-        public static void Patch_FixDashName(FVRPointableButton __instance)
-        {
-            var text = __instance.GetComponent<Text>();
-
-            if (text != null && text.text == "Armswinger")
-            {
-                text.text = "TS Arm Sprint";
-            }
-        }
-    }
+			return false;
+		}
+		
+		[HarmonyPatch(typeof(FVRPointableButton), "Awake")]
+		[HarmonyPostfix]
+		//this just renames the Dash in the menu to TSS (Twin Stick Swinger)
+		public static void Patch_FixDashName(FVRPointableButton __instance) {
+			var text = __instance.GetComponent<Text>();
+			if (text != null) {
+				if (text.text == "Dash Teleport")
+					text.text = "Twin-Stick Swinger";
+			}
+		}
+	}
 }
