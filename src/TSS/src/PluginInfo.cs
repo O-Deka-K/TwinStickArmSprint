@@ -26,6 +26,6 @@ namespace H3VRMod
     {
         internal const string NAME = "TwinStick Arm Sprint";
         internal const string GUID = "dll.h3vr.odekak.twinstickarmsprint";
-        internal const string VERSION = "1.5.0";
+        internal const string VERSION = "1.0.0";
     }
 }
