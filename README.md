@@ -1,19 +1,34 @@
-# Twin Stick Swinger
+# TwinStick Arm Sprint
 
-## NOTE: THIS IS ONLY TESTED TO WORK ON INDEX. REPLACES DASH.
+This is based on Potatoes' Twin Stick Swinger (https://github.com/potatoes1286/TwinStickSwinger). The main difference is that swinging the arms **only increases speed**, without affecting direction.
 
-Please notify me if TwinStickSwinger works on other controller types, or if it doesn't!
+Due to bugs caused by replacing the Dash movement mode, this mod replaces Armswinger mode instead. As such, it uses a combination of TwinStick options and Armswinger options.
 
-Working:
+The following settings are respected:
 
-- Valve Index
+- TwinStick Options:
+  - Movement Speed
+  - Controller Forward/Side Root
+  - TwinStick Left/Right Handedness
+  - TwinStick Jump
+- ArmSwinger Options:
+  - ArmSwinger Jump
+  - ArmSwinger Turning Mode
 
-Not Working:
+The following settings are **ignored**:
 
-Unknown.
+- TwinStick Options:
+  - TwinStick Turning Mode
+  - TwinStick Sprint Mode
+  - TwinStick Sprint Toggle Mode
+- ArmSwinger Options:
+  - ArmSwinger Base Speed (Left Hand)
+  - ArmSwinger Base Speed (Right Hand)
 
-On the Valve Index, the control scheme for Twin Stick and Armswinger actually don't interfere with each other. This allows both to be enabled at once without any compromises, and thus, Twinstick Swinger was born!
+You can also use the Global Movement Options.
 
-Twin Stick Swinger combines Twin Stick and Armswinger into one, providing the best of both worlds. Require the precision while handling a gun? Use the Twinstick controls. Want to run about? Press Armswinger controls! Why settle for one when you can get both?
+Several bugs were fixed compared to Twin Stick Swinger. Jump now works fine, whether you use TwinStick jump (down on the offhand stick) or Armswinger jump (raise both controllers above your head). Also, there's no awkward momentum issue when going down stairs.
 
-You can download the mod [here from Thunderstore.](https://h3vr.thunderstore.io/package/Potatoes/Potatoes_Twin_Stick_Swinger/)
+## NOTE: THIS IS ONLY TESTED TO WORK ON INDEX. REPLACES ARMSWINGER.
+
+TwinStick Arm Sprint combines Twin Stick and Armswinger into one, providing the best of both worlds. Require the precision while handling a gun? Use the Twinstick controls. Want to run about? Swing your arms! Why settle for one when you can get both?
