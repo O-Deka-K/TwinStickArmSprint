@@ -2,6 +2,8 @@
 
 This is based on Potatoes' Twin Stick Swinger (https://github.com/potatoes1286/TwinStickSwinger). The main difference is that swinging your arms _only increases speed_, without affecting direction. It's similar to movement in Blade & Sorcery.
 
+![Sosig running](https://i.imgur.com/ZLGeAgO.png)
+
 ### NOTE: REPLACES ARMSWINGER MOVEMENT MODE
 
 Due to issues caused by replacing Dash movement mode, this mod replaces Armswinger mode instead. It uses a combination of TwinStick options and Armswinger options.
