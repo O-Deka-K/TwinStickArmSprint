@@ -32,4 +32,3 @@ Several bugs were fixed compared to Twin Stick Swinger. Jump now works fine, whe
 ## NOTE: THIS IS ONLY TESTED TO WORK ON INDEX. REPLACES ARMSWINGER.
 
 TwinStick Arm Sprint combines Twin Stick and Armswinger into one, providing the best of both worlds. Require the precision while handling a gun? Use the Twinstick controls. Want to run about? Swing your arms! Why settle for one when you can get both?
-
