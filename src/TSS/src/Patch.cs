@@ -4,19 +4,15 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace H3VRMod
+namespace TwinStickArmSprint
 {
     public class Patch
     {
-        public static int MovementHand = 0;
-
         // This function finds the movement hand
-        [HarmonyPatch(typeof(FVRMovementManager), "Awake")]
-        [HarmonyPrefix]
-        public static void Patch_FindMovementHand(FVRMovementManager __instance)
+        public static int GetMovementHand(FVRMovementManager instance)
         {
-            int rightHand = __instance.Hands[0].IsThisTheRightHand ? 0 : 1;
-            MovementHand = (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove) ? rightHand : 1 - rightHand;
+            int rightHand = instance.Hands[0].IsThisTheRightHand ? 0 : 1;
+            return (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove) ? rightHand : 1 - rightHand;
         }
 
         // This is used by controllers that do not have an analog stick, so they use the touchpad instead
@@ -46,22 +42,40 @@ namespace H3VRMod
         {
             if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
-                bool westDown = __instance.Hands[MovementHand].Input.Secondary2AxisWestDown;
-                bool eastDown = __instance.Hands[MovementHand].Input.Secondary2AxisEastDown;
+                // TwinStick Arm Sprint mode
+                if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
+                {
+                    int moveHand = GetMovementHand(__instance);
+                    bool westDown = __instance.Hands[moveHand].Input.Secondary2AxisWestDown;
+                    bool eastDown = __instance.Hands[moveHand].Input.Secondary2AxisEastDown;
 
-                // Handle snap turning
-                // Don't allow the movement hand to do snap turning
-                __instance.Hands[MovementHand].Input.Secondary2AxisWestDown = false;
-                __instance.Hands[MovementHand].Input.Secondary2AxisEastDown = false;
-                __instance.HandUpdateArmSwinger(hand);
-                __instance.Hands[MovementHand].Input.Secondary2AxisWestDown = westDown;
-                __instance.Hands[MovementHand].Input.Secondary2AxisEastDown = eastDown;
+                    // Handle snap turning
+                    // Don't allow the movement hand to do snap turning
+                    __instance.Hands[moveHand].Input.Secondary2AxisWestDown = false;
+                    __instance.Hands[moveHand].Input.Secondary2AxisEastDown = false;
+                    __instance.HandUpdateArmSwinger(hand);
+                    __instance.Hands[moveHand].Input.Secondary2AxisWestDown = westDown;
+                    __instance.Hands[moveHand].Input.Secondary2AxisEastDown = eastDown;
 
-                // Ignore TwinStick turn mode
-                var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
-                GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
-                __instance.HandUpdateTwinstick(hand);
-                GM.Options.MovementOptions.TwinStickSnapturnState = mode;
+                    // Ignore TwinStick turn mode
+                    var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
+                    GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
+                    __instance.HandUpdateTwinstick(hand);
+                    GM.Options.MovementOptions.TwinStickSnapturnState = mode;
+                }
+                // Head Armswinger mode
+                else
+                {
+                    // Handle snap turning
+                    __instance.HandUpdateArmSwinger(hand);
+
+                    // Get head direction
+                    Vector3 headForward = GM.CurrentPlayerBody.Head.forward;
+                    headForward.y = 0f;
+                    headForward.Normalize();
+
+                    __instance.worldTPAxis = headForward;
+                }
 
                 __instance.AXButtonCheck(hand);
                 return false;
@@ -116,62 +130,82 @@ namespace H3VRMod
 
             if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
-                // Don't allow the movement hand to do smooth turning
-                __instance.Hands[MovementHand].Input.Secondary2AxisWestPressed = false;
-                __instance.Hands[MovementHand].Input.Secondary2AxisEastPressed = false;
-
-                // Armswinger buttons
-                ref bool armSwingPressed_0 = ref __instance.Hands[0].Input.BYButtonPressed;
-                ref bool armSwingPressed_1 = ref __instance.Hands[1].Input.BYButtonPressed;
-
-                if (__instance.Hands[0].IsInStreamlinedMode)
+                // TwinStick Arm Sprint mode
+                if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
                 {
-                    if (__instance.Hands[0].CMode == ControlMode.Index || __instance.Hands[0].CMode == ControlMode.WMR)
+                    // Don't allow the movement hand to do smooth turning
+                    int moveHand = GetMovementHand(__instance);
+                    __instance.Hands[moveHand].Input.Secondary2AxisWestPressed = false;
+                    __instance.Hands[moveHand].Input.Secondary2AxisEastPressed = false;
+
+                    // Armswinger buttons
+                    ref bool armSwingPressed_0 = ref __instance.Hands[0].Input.BYButtonPressed;
+                    ref bool armSwingPressed_1 = ref __instance.Hands[1].Input.BYButtonPressed;
+
+                    if (__instance.Hands[0].IsInStreamlinedMode)
                     {
-                        armSwingPressed_0 = ref __instance.Hands[0].Input.Secondary2AxisNorthPressed;
-                        armSwingPressed_1 = ref __instance.Hands[1].Input.Secondary2AxisNorthPressed;
+                        if (__instance.Hands[0].CMode == ControlMode.Index || __instance.Hands[0].CMode == ControlMode.WMR)
+                        {
+                            armSwingPressed_0 = ref __instance.Hands[0].Input.Secondary2AxisNorthPressed;
+                            armSwingPressed_1 = ref __instance.Hands[1].Input.Secondary2AxisNorthPressed;
+                        }
+                        else
+                        {
+                            armSwingPressed_0 = ref __instance.Hands[0].Input.TouchpadNorthPressed;
+                            armSwingPressed_1 = ref __instance.Hands[1].Input.TouchpadNorthPressed;
+                        }
                     }
-                    else
+
+                    // If the movement stick is active, activate both Armswinger buttons
+                    // This causes forward movement based on ArmSwingerBaseSpeed_Left and ArmSwingerBaseSpeed_Right
+                    float twinStickSpeed = __instance.worldTPAxis.magnitude;
+                    armSwingPressed_0 = (twinStickSpeed > 0f);
+                    armSwingPressed_1 = (twinStickSpeed > 0f);
+
+                    // Save rotation of hand pointers
+                    __state.pointerRotation_0 = __instance.Hands[0].PointingTransform.localRotation;
+                    __state.pointerRotation_1 = __instance.Hands[1].PointingTransform.localRotation;
+
+                    // Save Armswinger settings
+                    __state.baseSpeedLeft = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left;
+                    __state.baseSpeedRight = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right;
+
+                    // Only do this if we are moving
+                    // worldTPAxis will be between 0 and TPLocoSpeeds[TPLocoSpeedIndex]
+                    if (twinStickSpeed > 0f)
                     {
-                        armSwingPressed_0 = ref __instance.Hands[0].Input.TouchpadNorthPressed;
-                        armSwingPressed_1 = ref __instance.Hands[1].Input.TouchpadNorthPressed;
+                        // Set hand pointers to direction given by movement stick
+                        __instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
+                        __instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
+
+                        // For regular TwinStick mode, player speed = worldTPAxis.magnitude.
+                        // For Armswinger (with no arm movement), player speed = (ArmSwingerBaseSpeeMagnitudes[Left] + ArmSwingerBaseSpeeMagnitudes[Right]) x 1.5.
+                        // After adding arm movement, speed maxes out at 11, no matter what the base speed is.
+                        foreach (float speed in SpeedMap.Keys)
+                        {
+                            if (twinStickSpeed > speed)
+                            {
+                                GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = SpeedMap[speed][0];
+                                GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right = SpeedMap[speed][1];
+                                break;
+                            }
+                        }
                     }
                 }
-
-                // If the movement stick is active, activate both Armswinger buttons
-                // This causes forward movement based on ArmSwingerBaseSpeed_Left and ArmSwingerBaseSpeed_Right
-                float twinStickSpeed = __instance.worldTPAxis.magnitude;
-                armSwingPressed_0 = (twinStickSpeed > 0f);
-                armSwingPressed_1 = (twinStickSpeed > 0f);
-
-                // Save rotation of hand pointers
-                __state.pointerRotation_0 = __instance.Hands[0].PointingTransform.localRotation;
-                __state.pointerRotation_1 = __instance.Hands[1].PointingTransform.localRotation;
-
-                // Save Armswinger settings
-                __state.baseSpeedLeft = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left;
-                __state.baseSpeedRight = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right;
-
-                // Only do this if we are moving
-                // worldTPAxis will be between 0 and TPLocoSpeeds[TPLocoSpeedIndex]
-                if (twinStickSpeed > 0f)
+                // Head Armswinger mode
+                else
                 {
+                    // Save Armswinger settings
+                    __state.baseSpeedLeft = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left;
+                    __state.baseSpeedRight = GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right;
+
+                    // Save rotation of hand pointers
+                    __state.pointerRotation_0 = __instance.Hands[0].PointingTransform.localRotation;
+                    __state.pointerRotation_1 = __instance.Hands[1].PointingTransform.localRotation;
+
                     // Set hand pointers to direction given by movement stick
                     __instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
                     __instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
-
-                    // For regular TwinStick mode, player speed = worldTPAxis.magnitude.
-                    // For Armswinger (with no arm movement), player speed = (ArmSwingerBaseSpeeMagnitudes[Left] + ArmSwingerBaseSpeeMagnitudes[Right]) x 1.5.
-                    // After adding arm movement, speed maxes out at 11, no matter what the base speed is.
-                    foreach (float speed in SpeedMap.Keys)
-                    {
-                        if (twinStickSpeed > speed)
-                        {
-                            GM.Options.MovementOptions.ArmSwingerBaseSpeed_Left = SpeedMap[speed][0];
-                            GM.Options.MovementOptions.ArmSwingerBaseSpeed_Right = SpeedMap[speed][1];
-                            break;
-                        }
-                    }
                 }
             }
         }
@@ -202,7 +236,10 @@ namespace H3VRMod
 
             if (text != null && text.text == "Armswinger")
             {
-                text.text = "TS Arm Sprint";
+                if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
+                    text.text = "TS Arm Sprint";
+                else
+                    text.text = "Head Armswinger";
             }
         }
     }

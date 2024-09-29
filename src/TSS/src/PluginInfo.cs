@@ -1,4 +1,4 @@
-namespace H3VRMod
+namespace TwinStickArmSprint
 {
     // Based on Potatoes' Twin Stick Swinger
     // Forked from https://github.com/potatoes1286/TwinStickSwinger
@@ -26,6 +26,6 @@ namespace H3VRMod
     {
         internal const string NAME = "TwinStick Arm Sprint";
         internal const string GUID = "dll.h3vr.odekak.twinstickarmsprint";
-        internal const string VERSION = "1.0.1";
+        internal const string VERSION = "1.1.0";
     }
 }
