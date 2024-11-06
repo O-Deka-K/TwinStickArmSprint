@@ -46,16 +46,42 @@ namespace TwinStickArmSprint
                 if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
                 {
                     int moveHand = GetMovementHand(__instance);
-                    bool westDown = __instance.Hands[moveHand].Input.Secondary2AxisWestDown;
-                    bool eastDown = __instance.Hands[moveHand].Input.Secondary2AxisEastDown;
+                    bool axisWestDown = false;
+                    bool axisEastDown = false;
+                    bool touchpadWestDown = false;
+                    bool touchpadEastDown = false;
 
                     // Handle snap turning
                     // Don't allow the movement hand to do snap turning
-                    __instance.Hands[moveHand].Input.Secondary2AxisWestDown = false;
-                    __instance.Hands[moveHand].Input.Secondary2AxisEastDown = false;
+                    if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
+                    {
+                        axisWestDown = __instance.Hands[moveHand].Input.Secondary2AxisWestDown;
+                        axisEastDown = __instance.Hands[moveHand].Input.Secondary2AxisEastDown;
+
+                        __instance.Hands[moveHand].Input.Secondary2AxisWestDown = false;
+                        __instance.Hands[moveHand].Input.Secondary2AxisEastDown = false;
+                    }
+                    if (hand.IsInStreamlinedMode)
+                    {
+                        touchpadWestDown = __instance.Hands[moveHand].Input.TouchpadWestDown;
+                        touchpadEastDown = __instance.Hands[moveHand].Input.TouchpadEastDown;
+
+                        __instance.Hands[moveHand].Input.TouchpadWestDown = false;
+                        __instance.Hands[moveHand].Input.TouchpadEastDown = false;
+                    }
+
                     __instance.HandUpdateArmSwinger(hand);
-                    __instance.Hands[moveHand].Input.Secondary2AxisWestDown = westDown;
-                    __instance.Hands[moveHand].Input.Secondary2AxisEastDown = eastDown;
+
+                    if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
+                    {
+                        __instance.Hands[moveHand].Input.Secondary2AxisWestDown = axisWestDown;
+                        __instance.Hands[moveHand].Input.Secondary2AxisEastDown = axisEastDown;
+                    }
+                    if (hand.IsInStreamlinedMode)
+                    {
+                        __instance.Hands[moveHand].Input.TouchpadWestDown = touchpadWestDown;
+                        __instance.Hands[moveHand].Input.TouchpadEastDown = touchpadEastDown;
+                    }
 
                     // Ignore TwinStick turn mode
                     var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
@@ -135,8 +161,17 @@ namespace TwinStickArmSprint
                 {
                     // Don't allow the movement hand to do smooth turning
                     int moveHand = GetMovementHand(__instance);
-                    __instance.Hands[moveHand].Input.Secondary2AxisWestPressed = false;
-                    __instance.Hands[moveHand].Input.Secondary2AxisEastPressed = false;
+
+                    if (__instance.Hands[0].CMode == ControlMode.Index || __instance.Hands[0].CMode == ControlMode.WMR)
+                    {
+                        __instance.Hands[moveHand].Input.Secondary2AxisWestPressed = false;
+                        __instance.Hands[moveHand].Input.Secondary2AxisEastPressed = false;
+                    }
+                    else if (__instance.Hands[0].IsInStreamlinedMode)
+                    {
+                        __instance.Hands[moveHand].Input.TouchpadWestPressed = false;
+                        __instance.Hands[moveHand].Input.TouchpadEastPressed = false;
+                    }
 
                     // Armswinger buttons
                     ref bool armSwingPressed_0 = ref __instance.Hands[0].Input.BYButtonPressed;

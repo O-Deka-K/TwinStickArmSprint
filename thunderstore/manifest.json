@@ -1,8 +1,8 @@
 {
 "name": "TwinStickArmSprint",
-"version_number": "1.0.1",
+"version_number": "1.1.1",
 "website_url": "https://github.com/O-Deka-K/TwinStickArmSprint",
-"description": "Twinstick movement, but swinging your arms adds speed",
+"description": "Twinstick movement, but swinging your arms adds speed. Alternate mode: Head-Based Armswinger",
 "dependencies":
 [
     "BepInEx-BepInExPack_H3VR-5.4.1700"

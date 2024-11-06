@@ -26,6 +26,6 @@ namespace TwinStickArmSprint
     {
         internal const string NAME = "TwinStick Arm Sprint";
         internal const string GUID = "dll.h3vr.odekak.twinstickarmsprint";
-        internal const string VERSION = "1.1.0";
+        internal const string VERSION = "1.1.1";
     }
 }
