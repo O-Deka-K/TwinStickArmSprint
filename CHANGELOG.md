@@ -15,3 +15,7 @@
 # v1.1.1
 
 - Fixed streamlined controls
+
+# v1.1.2
+
+- Compiler optimizations

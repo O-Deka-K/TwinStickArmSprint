@@ -1,6 +1,7 @@
 ﻿using FistVR;
 using HarmonyLib;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,7 +19,7 @@ namespace TwinStickArmSprint
         // This is used by controllers that do not have an analog stick, so they use the touchpad instead
         [HarmonyPatch(typeof(FVRMovementManager), "ShouldFlushTouchpad")]
         [HarmonyPostfix]
-        public static void Patch_ShouldFlushTouchpad(FVRMovementManager __instance, FVRViveHand hand, ref bool __result)
+        public static void Patch_ShouldFlushTouchpad(FVRMovementManager __instance, bool ___m_isLeftHandActive, bool ___m_isRightHandActive, FVRViveHand hand, ref bool __result)
         {
             if (!hand.IsInStreamlinedMode && hand.CMode != ControlMode.Index && hand.CMode != ControlMode.WMR && __instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
@@ -27,10 +28,10 @@ namespace TwinStickArmSprint
                 if (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove)
                     isTurningHand = !isTurningHand;
 
-                if (__instance.m_isLeftHandActive && !isTurningHand)
+                if (___m_isLeftHandActive && !isTurningHand)
                     __result = true;
 
-                if (__instance.m_isRightHandActive && isTurningHand)
+                if (___m_isRightHandActive && isTurningHand)
                     __result = true;
             }
         }
@@ -38,7 +39,7 @@ namespace TwinStickArmSprint
         // This function gets the movement axis velocity
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateMovementWithHand")]
         [HarmonyPrefix]
-        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, FVRViveHand hand)
+        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, ref Vector3 ___worldTPAxis, FVRViveHand hand)
         {
             if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
@@ -70,7 +71,8 @@ namespace TwinStickArmSprint
                         __instance.Hands[moveHand].Input.TouchpadEastDown = false;
                     }
 
-                    __instance.HandUpdateArmSwinger(hand);
+                    var miHandUpdateArmSwinger = __instance.GetType().GetMethod("HandUpdateArmSwinger", BindingFlags.Instance | BindingFlags.NonPublic);
+                    miHandUpdateArmSwinger.Invoke(__instance, new object[] { hand });
 
                     if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
                     {
@@ -86,24 +88,27 @@ namespace TwinStickArmSprint
                     // Ignore TwinStick turn mode
                     var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
                     GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
-                    __instance.HandUpdateTwinstick(hand);
+                    var miHandUpdateTwinstick = __instance.GetType().GetMethod("HandUpdateTwinstick", BindingFlags.Instance | BindingFlags.NonPublic);
+                    miHandUpdateTwinstick.Invoke(__instance, new object[] { hand });
                     GM.Options.MovementOptions.TwinStickSnapturnState = mode;
                 }
                 // Head Armswinger mode
                 else
                 {
                     // Handle snap turning
-                    __instance.HandUpdateArmSwinger(hand);
+                    var miHandUpdateArmSwinger = __instance.GetType().GetMethod("HandUpdateArmSwinger", BindingFlags.Instance | BindingFlags.NonPublic);
+                    miHandUpdateArmSwinger.Invoke(__instance, new object[] { hand });
 
                     // Get head direction
                     Vector3 headForward = GM.CurrentPlayerBody.Head.forward;
                     headForward.y = 0f;
                     headForward.Normalize();
 
-                    __instance.worldTPAxis = headForward;
+                    ___worldTPAxis = headForward;
                 }
 
-                __instance.AXButtonCheck(hand);
+                var miAXButtonCheck = __instance.GetType().GetMethod("AXButtonCheck", BindingFlags.Instance | BindingFlags.NonPublic);
+                miAXButtonCheck.Invoke(__instance, new object[] { hand });
                 return false;
             }
 
@@ -150,7 +155,7 @@ namespace TwinStickArmSprint
         // This function manipulates Armswinger settings and button states based on what the movement stick is doing
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
         [HarmonyPrefix]
-        public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, out HandState __state)
+        public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, Vector3 ___worldTPAxis, out HandState __state)
         {
             __state = new HandState();
 
@@ -193,7 +198,7 @@ namespace TwinStickArmSprint
 
                     // If the movement stick is active, activate both Armswinger buttons
                     // This causes forward movement based on ArmSwingerBaseSpeed_Left and ArmSwingerBaseSpeed_Right
-                    float twinStickSpeed = __instance.worldTPAxis.magnitude;
+                    float twinStickSpeed = ___worldTPAxis.magnitude;
                     armSwingPressed_0 = (twinStickSpeed > 0f);
                     armSwingPressed_1 = (twinStickSpeed > 0f);
 
@@ -210,8 +215,8 @@ namespace TwinStickArmSprint
                     if (twinStickSpeed > 0f)
                     {
                         // Set hand pointers to direction given by movement stick
-                        __instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
-                        __instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
+                        __instance.Hands[0].PointingTransform.forward = ___worldTPAxis.normalized;
+                        __instance.Hands[1].PointingTransform.forward = ___worldTPAxis.normalized;
 
                         // For regular TwinStick mode, player speed = worldTPAxis.magnitude.
                         // For Armswinger (with no arm movement), player speed = (ArmSwingerBaseSpeeMagnitudes[Left] + ArmSwingerBaseSpeeMagnitudes[Right]) x 1.5.
@@ -239,8 +244,8 @@ namespace TwinStickArmSprint
                     __state.pointerRotation_1 = __instance.Hands[1].PointingTransform.localRotation;
 
                     // Set hand pointers to direction given by movement stick
-                    __instance.Hands[0].PointingTransform.forward = __instance.worldTPAxis.normalized;
-                    __instance.Hands[1].PointingTransform.forward = __instance.worldTPAxis.normalized;
+                    __instance.Hands[0].PointingTransform.forward = ___worldTPAxis.normalized;
+                    __instance.Hands[1].PointingTransform.forward = ___worldTPAxis.normalized;
                 }
             }
         }
