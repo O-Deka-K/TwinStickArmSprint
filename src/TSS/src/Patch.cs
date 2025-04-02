@@ -9,6 +9,10 @@ namespace TwinStickArmSprint
 {
     public class Patch
     {
+        private static readonly MethodInfo miHandUpdateArmSwinger = typeof(FVRMovementManager).GetMethod("HandUpdateArmSwinger", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo miHandUpdateTwinstick = typeof(FVRMovementManager).GetMethod("HandUpdateTwinstick", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo miAXButtonCheck = typeof(FVRMovementManager).GetMethod("AXButtonCheck", BindingFlags.Instance | BindingFlags.NonPublic);
+
         // This function finds the movement hand
         public static int GetMovementHand(FVRMovementManager instance)
         {
@@ -71,7 +75,6 @@ namespace TwinStickArmSprint
                         __instance.Hands[moveHand].Input.TouchpadEastDown = false;
                     }
 
-                    var miHandUpdateArmSwinger = __instance.GetType().GetMethod("HandUpdateArmSwinger", BindingFlags.Instance | BindingFlags.NonPublic);
                     miHandUpdateArmSwinger.Invoke(__instance, new object[] { hand });
 
                     if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
@@ -88,7 +91,6 @@ namespace TwinStickArmSprint
                     // Ignore TwinStick turn mode
                     var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
                     GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
-                    var miHandUpdateTwinstick = __instance.GetType().GetMethod("HandUpdateTwinstick", BindingFlags.Instance | BindingFlags.NonPublic);
                     miHandUpdateTwinstick.Invoke(__instance, new object[] { hand });
                     GM.Options.MovementOptions.TwinStickSnapturnState = mode;
                 }
@@ -96,7 +98,6 @@ namespace TwinStickArmSprint
                 else
                 {
                     // Handle snap turning
-                    var miHandUpdateArmSwinger = __instance.GetType().GetMethod("HandUpdateArmSwinger", BindingFlags.Instance | BindingFlags.NonPublic);
                     miHandUpdateArmSwinger.Invoke(__instance, new object[] { hand });
 
                     // Get head direction
@@ -107,7 +108,6 @@ namespace TwinStickArmSprint
                     ___worldTPAxis = headForward;
                 }
 
-                var miAXButtonCheck = __instance.GetType().GetMethod("AXButtonCheck", BindingFlags.Instance | BindingFlags.NonPublic);
                 miAXButtonCheck.Invoke(__instance, new object[] { hand });
                 return false;
             }
