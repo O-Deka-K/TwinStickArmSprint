@@ -64,6 +64,9 @@ You can also use the Global Movement Options, like setting the buttons to turn o
 
 Several bugs were fixed compared to Twin Stick Swinger. Jump now works fine, whether you use TwinStick jump or Armswinger jump. Also, there's no awkward momentum issue when going down stairs.
 
+Also, stick-based turning (smooth and snap) now work on Oculus/Meta controllers.
+
 ## Credits
 
 potatoes1286 - For making a great mod and for sharing the code on GitHub
+Alexine - For reporting issues and being a great tester
