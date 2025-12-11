@@ -19,3 +19,8 @@
 # v1.1.2
 
 - Compiler optimizations
+
+# 1.1.3
+
+- Removed sprint button effect
+- Enabled smooth turning and snap turning using stick for Oculus/Meta controllers
