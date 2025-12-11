@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
+using static FistVR.ControlOptions;
 
 namespace TwinStickArmSprint
 {
@@ -40,11 +41,28 @@ namespace TwinStickArmSprint
             }
         }
 
+        public class HandState
+        {
+            public Quaternion pointerRotation_0;
+            public Quaternion pointerRotation_1;
+            public int baseSpeedLeft;
+            public int baseSpeedRight;
+            public CoreControlMode coreControlMode;
+            public bool isInStreamlinedMode_0;
+            public bool isInStreamlinedMode_1;
+            public bool touchpadNorthPressed_0;
+            public bool touchpadNorthPressed_1;
+            public bool touchpadWestPressed;
+            public bool touchpadEastPressed;
+        }
+
         // This function gets the movement axis velocity
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateMovementWithHand")]
         [HarmonyPrefix]
-        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, ref Vector3 ___worldTPAxis, FVRViveHand hand)
+        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, ref Vector3 ___worldTPAxis, bool ___m_sprintingEngaged, FVRViveHand hand, out HandState __state)
         {
+            __state = new HandState();
+
             if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
                 // TwinStick Arm Sprint mode
@@ -58,6 +76,19 @@ namespace TwinStickArmSprint
 
                     // Handle snap turning
                     // Don't allow the movement hand to do snap turning
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
+                    {
+                        __state.coreControlMode = GM.Options.ControlOptions.CCM;
+                        __state.isInStreamlinedMode_0 = __instance.Hands[0].IsInStreamlinedMode;
+                        __state.isInStreamlinedMode_1 = __instance.Hands[1].IsInStreamlinedMode;
+                        __state.touchpadWestPressed = __instance.Hands[moveHand].Input.TouchpadWestPressed;
+                        __state.touchpadEastPressed = __instance.Hands[moveHand].Input.TouchpadEastPressed;
+
+                        GM.Options.ControlOptions.CCM = CoreControlMode.Streamlined;
+                        __instance.Hands[0].IsInStreamlinedMode = true;
+                        __instance.Hands[1].IsInStreamlinedMode = true;
+                    }
+
                     if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
                     {
                         axisWestDown = __instance.Hands[moveHand].Input.Secondary2AxisWestDown;
@@ -66,6 +97,7 @@ namespace TwinStickArmSprint
                         __instance.Hands[moveHand].Input.Secondary2AxisWestDown = false;
                         __instance.Hands[moveHand].Input.Secondary2AxisEastDown = false;
                     }
+
                     if (hand.IsInStreamlinedMode)
                     {
                         touchpadWestDown = __instance.Hands[moveHand].Input.TouchpadWestDown;
@@ -75,13 +107,24 @@ namespace TwinStickArmSprint
                         __instance.Hands[moveHand].Input.TouchpadEastDown = false;
                     }
 
-                    miHandUpdateArmSwinger.Invoke(__instance, new object[] { hand });
+                    miHandUpdateArmSwinger.Invoke(__instance, [hand]);
+
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
+                    {
+                        // Restore controls used in Streamlined Mode
+                        GM.Options.ControlOptions.CCM = __state.coreControlMode;
+                        __instance.Hands[0].IsInStreamlinedMode = __state.isInStreamlinedMode_0;
+                        __instance.Hands[1].IsInStreamlinedMode = __state.isInStreamlinedMode_1;
+                        __instance.Hands[moveHand].Input.TouchpadWestPressed = __state.touchpadWestPressed;
+                        __instance.Hands[moveHand].Input.TouchpadEastPressed = __state.touchpadEastPressed;
+                    }
 
                     if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
                     {
                         __instance.Hands[moveHand].Input.Secondary2AxisWestDown = axisWestDown;
                         __instance.Hands[moveHand].Input.Secondary2AxisEastDown = axisEastDown;
                     }
+
                     if (hand.IsInStreamlinedMode)
                     {
                         __instance.Hands[moveHand].Input.TouchpadWestDown = touchpadWestDown;
@@ -91,14 +134,25 @@ namespace TwinStickArmSprint
                     // Ignore TwinStick turn mode
                     var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
                     GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
-                    miHandUpdateTwinstick.Invoke(__instance, new object[] { hand });
+
+                    miHandUpdateTwinstick.Invoke(__instance, [hand]);
+
+                    // Remove effect of sprinting
+                    if (___m_sprintingEngaged && GM.Options.MovementOptions.TPLocoSpeedIndex < 5)
+                    {
+                        Vector3 normalized = ___worldTPAxis.normalized;
+
+                        if (___worldTPAxis.magnitude > normalized.magnitude * 2f)
+                            ___worldTPAxis -= normalized * 2f;
+                    }
+
                     GM.Options.MovementOptions.TwinStickSnapturnState = mode;
                 }
                 // Head Armswinger mode
                 else
                 {
                     // Handle snap turning
-                    miHandUpdateArmSwinger.Invoke(__instance, new object[] { hand });
+                    miHandUpdateArmSwinger.Invoke(__instance, [hand]);
 
                     // Get head direction
                     Vector3 headForward = GM.CurrentPlayerBody.Head.forward;
@@ -108,7 +162,7 @@ namespace TwinStickArmSprint
                     ___worldTPAxis = headForward;
                 }
 
-                miAXButtonCheck.Invoke(__instance, new object[] { hand });
+                miAXButtonCheck.Invoke(__instance, [hand]);
                 return false;
             }
 
@@ -122,35 +176,27 @@ namespace TwinStickArmSprint
         //   0.7   1.3   1.8   2.6   4     6.5   TPLocoSpeeds
         public static readonly Dictionary<float, int[]> SpeedMap = new()
         {
-            { 3.6f,   new int[] {5, 5} },
-            { 3.0f,   new int[] {5, 4} },
-            { 2.55f,  new int[] {5, 3} },
-            { 2.4f,   new int[] {4, 4} },
-            { 2.175f, new int[] {5, 2} },
-            { 2.025f, new int[] {5, 1} },
-            { 1.95f,  new int[] {4, 3} },
-            { 1.8f,   new int[] {5, 0} },
-            { 1.575f, new int[] {4, 2} },
-            { 1.5f,   new int[] {3, 3} },
-            { 1.425f, new int[] {4, 1} },
-            { 1.2f,   new int[] {4, 0} },
-            { 1.125f, new int[] {3, 2} },
-            { 0.975f, new int[] {3, 1} },
-            { 0.75f,  new int[] {2, 2} },
-            { 0.6f,   new int[] {2, 1} },
-            { 0.45f,  new int[] {1, 1} },
-            { 0.375f, new int[] {2, 0} },
-            { 0.225f, new int[] {1, 0} },
-            { 0f,     new int[] {0, 0} },
+            { 3.6f,   [5, 5] },
+            { 3.0f,   [5, 4] },
+            { 2.55f,  [5, 3] },
+            { 2.4f,   [4, 4] },
+            { 2.175f, [5, 2] },
+            { 2.025f, [5, 1] },
+            { 1.95f,  [4, 3] },
+            { 1.8f,   [5, 0] },
+            { 1.575f, [4, 2] },
+            { 1.5f,   [3, 3] },
+            { 1.425f, [4, 1] },
+            { 1.2f,   [4, 0] },
+            { 1.125f, [3, 2] },
+            { 0.975f, [3, 1] },
+            { 0.75f,  [2, 2] },
+            { 0.6f,   [2, 1] },
+            { 0.45f,  [1, 1] },
+            { 0.375f, [2, 0] },
+            { 0.225f, [1, 0] },
+            { 0f,     [0, 0] },
         };
-
-        public class HandState
-        {
-            public Quaternion pointerRotation_0;
-            public Quaternion pointerRotation_1;
-            public int baseSpeedLeft;
-            public int baseSpeedRight;
-        }
 
         // This function manipulates Armswinger settings and button states based on what the movement stick is doing
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
@@ -166,6 +212,22 @@ namespace TwinStickArmSprint
                 {
                     // Don't allow the movement hand to do smooth turning
                     int moveHand = GetMovementHand(__instance);
+
+                    // Since Classic Mode doesn't support smooth turning, switch to Streamlined Mode
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
+                    {
+                        __state.coreControlMode = GM.Options.ControlOptions.CCM;
+                        __state.isInStreamlinedMode_0 = __instance.Hands[0].IsInStreamlinedMode;
+                        __state.isInStreamlinedMode_1 = __instance.Hands[1].IsInStreamlinedMode;
+                        __state.touchpadNorthPressed_0 = __instance.Hands[0].Input.TouchpadNorthPressed;
+                        __state.touchpadNorthPressed_1 = __instance.Hands[1].Input.TouchpadNorthPressed;
+                        __state.touchpadWestPressed = __instance.Hands[moveHand].Input.TouchpadWestPressed;
+                        __state.touchpadEastPressed = __instance.Hands[moveHand].Input.TouchpadEastPressed;
+
+                        GM.Options.ControlOptions.CCM = CoreControlMode.Streamlined;
+                        __instance.Hands[0].IsInStreamlinedMode = true;
+                        __instance.Hands[1].IsInStreamlinedMode = true;
+                    }
 
                     if (__instance.Hands[0].CMode == ControlMode.Index || __instance.Hands[0].CMode == ControlMode.WMR)
                     {
@@ -257,6 +319,22 @@ namespace TwinStickArmSprint
         {
             if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
+                if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
+                {
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
+                    {
+                        // Restore controls used in Streamlined Mode
+                        int moveHand = GetMovementHand(__instance);
+                        GM.Options.ControlOptions.CCM = __state.coreControlMode;
+                        __instance.Hands[0].IsInStreamlinedMode = __state.isInStreamlinedMode_0;
+                        __instance.Hands[1].IsInStreamlinedMode = __state.isInStreamlinedMode_1;
+                        __instance.Hands[0].Input.TouchpadNorthPressed = __state.touchpadNorthPressed_0;
+                        __instance.Hands[1].Input.TouchpadNorthPressed = __state.touchpadNorthPressed_1;
+                        __instance.Hands[moveHand].Input.TouchpadWestPressed = __state.touchpadWestPressed;
+                        __instance.Hands[moveHand].Input.TouchpadEastPressed = __state.touchpadEastPressed;
+                    }
+                }
+
                 // Restore rotation of hand pointers
                 __instance.Hands[0].PointingTransform.localRotation = __state.pointerRotation_0;
                 __instance.Hands[1].PointingTransform.localRotation = __state.pointerRotation_1;
