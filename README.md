@@ -69,4 +69,5 @@ Also, stick-based turning (smooth and snap) now work on Oculus/Meta controllers.
 ## Credits
 
 potatoes1286 - For making a great mod and for sharing the code on GitHub
+
 Alexine - For reporting issues and being a great tester
