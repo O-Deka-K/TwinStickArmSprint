@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <TargetFramework>net35</TargetFramework>
-        <LangVersion>9</LangVersion>
+        <LangVersion>preview</LangVersion>
         <Nullable>disable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <RootNamespace>Plugin</RootNamespace>
