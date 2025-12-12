@@ -1,6 +1,6 @@
 {
 "name": "TwinStickArmSprint",
-"version_number": "1.1.2",
+"version_number": "1.1.4",
 "website_url": "https://github.com/O-Deka-K/TwinStickArmSprint",
 "description": "Twinstick movement, but swinging your arms adds speed. Alternate mode: Head-Based Armswinger",
 "dependencies":
