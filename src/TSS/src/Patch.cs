@@ -68,46 +68,23 @@ namespace TwinStickArmSprint
                 // TwinStick Arm Sprint mode
                 if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
                 {
-                    int moveHand = GetMovementHand(__instance);
-                    bool axisWestDown = false;
-                    bool axisEastDown = false;
-                    bool touchpadWestDown = false;
-                    bool touchpadEastDown = false;
-
                     // Handle snap turning
-                    // Don't allow the movement hand to do snap turning
                     if (__instance.Hands[0].CMode == ControlMode.Oculus)
                     {
                         __state.coreControlMode = GM.Options.ControlOptions.CCM;
                         __state.isInStreamlinedMode_0 = __instance.Hands[0].IsInStreamlinedMode;
                         __state.isInStreamlinedMode_1 = __instance.Hands[1].IsInStreamlinedMode;
-                        __state.touchpadWestPressed = __instance.Hands[moveHand].Input.TouchpadWestPressed;
-                        __state.touchpadEastPressed = __instance.Hands[moveHand].Input.TouchpadEastPressed;
 
                         GM.Options.ControlOptions.CCM = CoreControlMode.Streamlined;
                         __instance.Hands[0].IsInStreamlinedMode = true;
                         __instance.Hands[1].IsInStreamlinedMode = true;
                     }
 
-                    if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
+                    // Only call HandUpdateArmSwinger if this is the non-movement hand
+                    if (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove ^ hand.IsThisTheRightHand)
                     {
-                        axisWestDown = __instance.Hands[moveHand].Input.Secondary2AxisWestDown;
-                        axisEastDown = __instance.Hands[moveHand].Input.Secondary2AxisEastDown;
-
-                        __instance.Hands[moveHand].Input.Secondary2AxisWestDown = false;
-                        __instance.Hands[moveHand].Input.Secondary2AxisEastDown = false;
+                        miHandUpdateArmSwinger.Invoke(__instance, [hand]);
                     }
-
-                    if (hand.IsInStreamlinedMode)
-                    {
-                        touchpadWestDown = __instance.Hands[moveHand].Input.TouchpadWestDown;
-                        touchpadEastDown = __instance.Hands[moveHand].Input.TouchpadEastDown;
-
-                        __instance.Hands[moveHand].Input.TouchpadWestDown = false;
-                        __instance.Hands[moveHand].Input.TouchpadEastDown = false;
-                    }
-
-                    miHandUpdateArmSwinger.Invoke(__instance, [hand]);
 
                     if (__instance.Hands[0].CMode == ControlMode.Oculus)
                     {
@@ -115,20 +92,6 @@ namespace TwinStickArmSprint
                         GM.Options.ControlOptions.CCM = __state.coreControlMode;
                         __instance.Hands[0].IsInStreamlinedMode = __state.isInStreamlinedMode_0;
                         __instance.Hands[1].IsInStreamlinedMode = __state.isInStreamlinedMode_1;
-                        __instance.Hands[moveHand].Input.TouchpadWestPressed = __state.touchpadWestPressed;
-                        __instance.Hands[moveHand].Input.TouchpadEastPressed = __state.touchpadEastPressed;
-                    }
-
-                    if (hand.CMode == ControlMode.Index || hand.CMode == ControlMode.WMR)
-                    {
-                        __instance.Hands[moveHand].Input.Secondary2AxisWestDown = axisWestDown;
-                        __instance.Hands[moveHand].Input.Secondary2AxisEastDown = axisEastDown;
-                    }
-
-                    if (hand.IsInStreamlinedMode)
-                    {
-                        __instance.Hands[moveHand].Input.TouchpadWestDown = touchpadWestDown;
-                        __instance.Hands[moveHand].Input.TouchpadEastDown = touchpadEastDown;
                     }
 
                     // Ignore TwinStick turn mode
@@ -201,7 +164,7 @@ namespace TwinStickArmSprint
         // This function manipulates Armswinger settings and button states based on what the movement stick is doing
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
         [HarmonyPrefix]
-        public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, Vector3 ___worldTPAxis, out HandState __state)
+        public static void Patch_SmoothLocomotionUpdate(FVRMovementManager __instance, Vector3 ___worldTPAxis, bool ___m_isRightHandActive, out HandState __state)
         {
             __state = new HandState();
 
@@ -214,7 +177,7 @@ namespace TwinStickArmSprint
                     int moveHand = GetMovementHand(__instance);
 
                     // Since Classic Mode doesn't support smooth turning, switch to Streamlined Mode
-                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus && ___m_isRightHandActive)
                     {
                         __state.coreControlMode = GM.Options.ControlOptions.CCM;
                         __state.isInStreamlinedMode_0 = __instance.Hands[0].IsInStreamlinedMode;
@@ -315,13 +278,13 @@ namespace TwinStickArmSprint
         // This function restores settings and states that were manipulated earlier
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateSmoothLocomotion")]
         [HarmonyPostfix]
-        public static void Patch_SmoothLocomotionUpdateEnd(FVRMovementManager __instance, HandState __state)
+        public static void Patch_SmoothLocomotionUpdateEnd(FVRMovementManager __instance, bool ___m_isRightHandActive, HandState __state)
         {
             if (__instance.Mode == FVRMovementManager.MovementMode.Armswinger)
             {
                 if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
                 {
-                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus && ___m_isRightHandActive)
                     {
                         // Restore controls used in Streamlined Mode
                         int moveHand = GetMovementHand(__instance);
