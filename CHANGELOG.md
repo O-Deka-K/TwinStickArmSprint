@@ -28,3 +28,7 @@
 # v1.1.4
 
 - Don't allow smooth turning when movement mode is off for Oculus controllers
+
+# v1.1.5
+
+- Don't allow snap turning when movement mode is off for Oculus controllers

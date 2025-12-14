@@ -59,7 +59,7 @@ namespace TwinStickArmSprint
         // This function gets the movement axis velocity
         [HarmonyPatch(typeof(FVRMovementManager), "UpdateMovementWithHand")]
         [HarmonyPrefix]
-        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, ref Vector3 ___worldTPAxis, bool ___m_sprintingEngaged, FVRViveHand hand, out HandState __state)
+        public static bool Patch_HandMovementUpdate(FVRMovementManager __instance, ref Vector3 ___worldTPAxis, ref GameObject ___m_twinStickArrowsRight, bool ___m_sprintingEngaged, FVRViveHand hand, out HandState __state)
         {
             __state = new HandState();
 
@@ -68,32 +68,6 @@ namespace TwinStickArmSprint
                 // TwinStick Arm Sprint mode
                 if (Plugin.HeadArmswinger == null || !Plugin.HeadArmswinger.Value)
                 {
-                    // Handle snap turning
-                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
-                    {
-                        __state.coreControlMode = GM.Options.ControlOptions.CCM;
-                        __state.isInStreamlinedMode_0 = __instance.Hands[0].IsInStreamlinedMode;
-                        __state.isInStreamlinedMode_1 = __instance.Hands[1].IsInStreamlinedMode;
-
-                        GM.Options.ControlOptions.CCM = CoreControlMode.Streamlined;
-                        __instance.Hands[0].IsInStreamlinedMode = true;
-                        __instance.Hands[1].IsInStreamlinedMode = true;
-                    }
-
-                    // Only call HandUpdateArmSwinger if this is the non-movement hand
-                    if (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove ^ hand.IsThisTheRightHand)
-                    {
-                        miHandUpdateArmSwinger.Invoke(__instance, [hand]);
-                    }
-
-                    if (__instance.Hands[0].CMode == ControlMode.Oculus)
-                    {
-                        // Restore controls used in Streamlined Mode
-                        GM.Options.ControlOptions.CCM = __state.coreControlMode;
-                        __instance.Hands[0].IsInStreamlinedMode = __state.isInStreamlinedMode_0;
-                        __instance.Hands[1].IsInStreamlinedMode = __state.isInStreamlinedMode_1;
-                    }
-
                     // Ignore TwinStick turn mode
                     var mode = GM.Options.MovementOptions.TwinStickSnapturnState;
                     GM.Options.MovementOptions.TwinStickSnapturnState = MovementOptions.TwinStickSnapturnMode.Disabled;
@@ -110,6 +84,32 @@ namespace TwinStickArmSprint
                     }
 
                     GM.Options.MovementOptions.TwinStickSnapturnState = mode;
+
+                    // Handle snap turning
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus && ___m_twinStickArrowsRight.activeSelf)
+                    {
+                        __state.coreControlMode = GM.Options.ControlOptions.CCM;
+                        __state.isInStreamlinedMode_0 = __instance.Hands[0].IsInStreamlinedMode;
+                        __state.isInStreamlinedMode_1 = __instance.Hands[1].IsInStreamlinedMode;
+
+                        GM.Options.ControlOptions.CCM = CoreControlMode.Streamlined;
+                        __instance.Hands[0].IsInStreamlinedMode = true;
+                        __instance.Hands[1].IsInStreamlinedMode = true;
+                    }
+
+                    // Only call HandUpdateArmSwinger if this is the non-movement hand
+                    if (GM.Options.MovementOptions.TwinStickLeftRightState == MovementOptions.TwinStickLeftRightSetup.RightStickMove ^ hand.IsThisTheRightHand)
+                    {
+                        miHandUpdateArmSwinger.Invoke(__instance, [hand]);
+                    }
+
+                    if (__instance.Hands[0].CMode == ControlMode.Oculus && ___m_twinStickArrowsRight.activeSelf)
+                    {
+                        // Restore controls used in Streamlined Mode
+                        GM.Options.ControlOptions.CCM = __state.coreControlMode;
+                        __instance.Hands[0].IsInStreamlinedMode = __state.isInStreamlinedMode_0;
+                        __instance.Hands[1].IsInStreamlinedMode = __state.isInStreamlinedMode_1;
+                    }
                 }
                 // Head Armswinger mode
                 else
